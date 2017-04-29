@@ -275,28 +275,26 @@ public class Server extends Thread {
             System.out.println("Error happens when try to delete host " + name);
         }
 
-        /* pass newServerList to current removed host's client
-        and let it transfer tuple to particular host.
-        */
+        // pass newServerList to current removed host's client
+        // and let it transfer tuple to particular host.
         Client client = new Client(login, name);
-        String subcommand = "remove&" + newServerList;
-        client.runClient(IP.getHostAddress(), PORT, subcommand);
+        String subCommand = "remove&" + newServerList;
+        client.runClient(IP.getHostAddress(), PORT, subCommand);
     }
 
     /**
-     * after the host has been removed, need to initiate its net and tuple files
-     * @param in
+     * after the host has been removed, need to remove its net and tuple files
      * @throws IOException
      */
-    private void reInitiate(BufferedReader in) throws IOException {
-        List<ServerItem> serverList = new ArrayList<>();
-        ServerItem server = new ServerItem(name, IP.getHostAddress(), PORT);
-        serverList.add(server);
-        ServerList.saveServerList(login, name, serverList);
-        List<String> emptyTuples = new ArrayList<>();
-        TupleSpace.saveTupleFile(emptyTuples, login, name);
-        System.out.println("Host " + name + " has been deleted.");
-        System.out.print("linda> ");
+    private void cleanUp() throws IOException {
+        ServerList.removeServerFile(login, name);
+        TupleSpace.removeTupleFile(login, name);
+        String folderPath = "/tmp/" + login + "/linda/" + name;
+        File folder = new File(folderPath);
+        folder.delete();
+        System.out.println("Host " + name + " has been deleted and folder " + folderPath + " has been removed");
+        System.out.println("Exiting now, bye!");
+        System.exit(0);
     }
 
     /**
@@ -448,7 +446,7 @@ public class Server extends Thread {
                     // the removed host transfer their data.
                     case "deleted": transferTupleHandler(in);
                                 break;
-                    case "finished": reInitiate(in);
+                    case "cleanUp": cleanUp();
                                 break;
                     /*
                      get update request from deleted host to update serverList.

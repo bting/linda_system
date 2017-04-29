@@ -18,6 +18,11 @@ public class TupleSpace {
         return path;
     }
 
+    public  static void removeTupleFile(String login, String name) {
+        File tupleFile = new File(getFilePath(login, name));
+        tupleFile.delete();
+    }
+
     /**
      * load tuples from disk into memory
      * @param login, name

@@ -20,6 +20,15 @@ public class ServerList {
         changeMode(login, name, "nets");
         return path;
     }
+
+    /**
+     * remove server file
+     */
+    public static void removeServerFile(String login, String name) {
+        File serverFile = new File(getServerFilePath(login, name));
+        serverFile.delete();
+    }
+
     /**
      * load server-List from disk
      */
