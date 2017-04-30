@@ -36,7 +36,7 @@ public class P1 {
             server.start();
             // let main thread wait for server start
             Thread.sleep(1000);
-            // get IP addresss and port number from server
+            // get IP address and port number from server
             String serverInfo = server.getServerInfo();
             String[] strs = serverInfo.split(" ");
             IP = strs[0];
@@ -48,12 +48,12 @@ public class P1 {
             BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
             while (true) {
                 System.out.print("linda> ");
-                String subcommand = reader.readLine();
-                if (subcommand == null) {
+                String subCommand = reader.readLine();
+                if (subCommand == null) {
                     continue;
                 }
                 Client client = new Client(login, name);
-                client.runClient(IP, PORT, subcommand);
+                client.runClient(IP, PORT, subCommand);
             }
         } catch (Exception e) {
             System.out.println("Error happens when run server and client: " + e);

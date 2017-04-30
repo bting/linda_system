@@ -1,3 +1,6 @@
+import com.sun.org.apache.xpath.internal.operations.Bool;
+import javafx.beans.value.ChangeListener;
+
 import java.io.*;
 import java.net.InetAddress;
 import java.net.ServerSocket;
@@ -6,6 +9,7 @@ import java.net.SocketAddress;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Set;
 
 public class Server extends Thread {
 
@@ -33,16 +37,81 @@ public class Server extends Thread {
         return str;
     }
 
+    private File getDataFolder() {
+        String path = "/tmp/" + login + "/linda/" + name;
+        File folder = new File(path);
+        return folder;
+    }
+
+    /**
+     * recover after crash or killed
+     */
+    private void recover(int port) throws Exception {
+       // update net file
+       List<ServerItem> serverList = ServerList.loadServerList(login, name);
+       int nodeID = 0;
+       for (ServerItem server : serverList) {
+           if (server.getName().equals(name)) {
+               server.setPort(port);
+               break;
+           }
+           nodeID += 1;
+       }
+       ServerList.saveServerList(login, name, serverList);
+       ConsistentHash.updateTables(serverList.size());
+       Client client = new Client(login, name);
+       client.runClient(IP.getHostAddress(), PORT, "syncServerList");
+
+       // clean up all old tuples
+       TupleSpace.removeTupleFile(login, name);
+
+       recoverFromBackup(serverList, nodeID);
+       recoverFromPrimary(serverList, nodeID);
+    }
+
+    /**
+     * read all tuples that should be originally stored in this node from back up node
+     */
+    private void recoverFromBackup(List<ServerItem> serverList, int nodeID) throws Exception {
+        Set<Integer> backupNodes = ConsistentHash.getBackupNodes(nodeID);
+        for (Integer ID : backupNodes) {
+            Client client = new Client(login, name);
+            ServerItem server = serverList.get(ID);
+            client.runClient(server.getIP(), server.getPort(), "recover origin " + ID + " " + nodeID);
+        }
+    }
+
+    /**
+     * read all tuples that should be backed up in this node from primary nodes
+     */
+    private void recoverFromPrimary(List<ServerItem> serverList, int nodeID) throws Exception {
+        Set<Integer> primaryNodes = ConsistentHash.getPrimaryNodes(nodeID);
+        for (Integer ID : primaryNodes) {
+            Client client = new Client(login, name);
+            ServerItem server = serverList.get(ID);
+            client.runClient(server.getIP(), server.getPort(), "recover backup " + ID + " " + nodeID);
+        }
+    }
+
+    /**
+     * Read all tuples that should be backed up in this node from origin node
+     */
+
     /**
      * initiate server, let server connect to its own client
      */
-    private void init(String IP, int port) throws IOException {
-        List<ServerItem> serverList = new ArrayList<>();
-        ServerItem server = new ServerItem(name, IP, port);
-        serverList.add(server);
-        ServerList.saveServerList(login, name, serverList);
-        TupleSpace.saveTupleFile(tuples, login, name);
-        tuples = TupleSpace.loadTupleFile(login, name);
+    private void init(String IP, int port) throws Exception {
+        if(getDataFolder().exists()) {
+            // recover from crash or killed
+            recover(port);
+        } else {
+            List<ServerItem> serverList = new ArrayList<>();
+            ServerItem server = new ServerItem(name, IP, port);
+            serverList.add(server);
+            ServerList.saveServerList(login, name, serverList);
+            TupleSpace.saveTupleFile(tuples, login, name);
+            tuples = TupleSpace.loadTupleFile(login, name);
+        }
     }
 
     /**
@@ -349,10 +418,10 @@ public class Server extends Thread {
      * save the newest tuple List!!!
      */
 
-    private void updateTupleAfterAllHander() throws Exception {
+    private void updateTupleAfterAllHandler() throws Exception {
         List<ServerItem> serverList = ServerList.loadServerList(login, name);
-        int[] lookUpTable = ConsistentHash.updateLookUpTable(serverList.size());
-        int[] backUpTable = ConsistentHash.updateBackUpTable(lookUpTable);
+        ConsistentHash.updateLookUpTable(serverList.size());
+        ConsistentHash.updateBackUpTable();
         List<String> totaltuples = TupleSpace.loadTupleFile(login, name);
         List<String> newTupleList = totaltuples;
         StringBuilder sb = new StringBuilder();
@@ -361,7 +430,7 @@ public class Server extends Thread {
             String[] tupleInfo = tuple.split("&");
             int hashVal = Integer.parseInt(tupleInfo[1]);
             String flag = tupleInfo[2];
-            int[] ids = ConsistentHash.getIds(hashVal, lookUpTable, backUpTable);
+            int[] ids = ConsistentHash.getIds(hashVal);
 
             if (flag.equals("origin")) {
                 String hostName = serverList.get(ids[0]).getName();
@@ -397,6 +466,42 @@ public class Server extends Thread {
     }
 
     /**
+     * handle recover request: go through tuple list and find out corresponding tuples
+     */
+    private void recoverHandler(BufferedReader in) throws Exception {
+        String flag = in.readLine();
+        int nodeID = Integer.parseInt(in.readLine());
+        List<ServerItem> serverList = ServerList.loadServerList(login, name);
+        ServerItem server = serverList.get(nodeID);
+        List<String> tuples = TupleSpace.loadTupleFile(login, name);
+        for (String tuple : tuples) {
+            String subs[] = tuple.split("&");
+            String tupleStr = subs[0].split(":", 3)[2];
+            tupleStr = tupleStr.substring(1, tupleStr.length()-1);
+            int hashVal = Integer.parseInt(subs[1]);
+            String tupleFlag = subs[2];
+            if (flag.equals(tupleFlag)) {
+                continue;
+            }
+            int[] ids = ConsistentHash.getIds(hashVal);
+            if ((flag.equals("origin") && nodeID == ids[0]) ||
+                (flag.equals("backup") && nodeID == ids[1])) {
+                Client client = new Client(login, name);
+                client.runClient(server.getIP(), server.getPort(), "sendTupleTo " + nodeID + " " + flag + " " + hashVal + " "+ tupleStr);
+            }
+        }
+    }
+
+    /**
+     *  return killed file
+     */
+    private File getKilledFile() {
+        String path = "/tmp/" + login + "/linda/" + name + "/killed";
+        File killed = new File(path);
+        return killed;
+    }
+
+    /**
      * run and initiate server, let it listen to host port
      */
     public void run() {
@@ -416,10 +521,9 @@ public class Server extends Thread {
             }
             listener.close();
         } catch (Exception e) {
-            System.out.println(e);
+            e.printStackTrace();
         }
     }
-
 
     /**
      * deal with request from client, and send request to particular function
@@ -458,9 +562,11 @@ public class Server extends Thread {
                                 break;
                     case "deleteSameTuples": deleteSameTuples(in);
                                 break;
-                    case "updateTupleAfterAll": updateTupleAfterAllHander();
+                    case "updateTupleAfterAll": updateTupleAfterAllHandler();
                                 break;
                     case "getUpdateTuple": getUpdateTupleHandler(in);
+                                break;
+                    case "recover": recoverHandler(in);
                                 break;
                 }
 

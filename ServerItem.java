@@ -36,4 +36,11 @@ public class ServerItem {
     public String getName() {
         return hostName;
     }
+
+    /**
+     * set port number
+     */
+    public void setPort(int p) {
+        port = p;
+    }
 }

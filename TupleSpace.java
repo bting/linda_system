@@ -18,8 +18,11 @@ public class TupleSpace {
         return path;
     }
 
-    public  static void removeTupleFile(String login, String name) {
+    public  static void removeTupleFile(String login, String name) throws IOException {
         File tupleFile = new File(getFilePath(login, name));
+        if (!tupleFile.exists()) {
+            throw new IOException("tuple file doesn't exist, please remove linda folder");
+        }
         tupleFile.delete();
     }
 

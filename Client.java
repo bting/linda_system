@@ -54,14 +54,14 @@ public class Client {
      */
     private String sendMessage(String command, String isVariable, String tupleStr, int hashVal) throws IOException, InterruptedException {
         List<ServerItem> serverList = ServerList.loadServerList(login, name);
-        int[] lookUpTable = ConsistentHash.updateLookUpTable(serverList.size());
-        int[] backUpTable = ConsistentHash.updateBackUpTable(lookUpTable);
-        int[] ids = ConsistentHash.getIds(hashVal, lookUpTable, backUpTable);
+        ConsistentHash.updateLookUpTable(serverList.size());
+        ConsistentHash.updateBackUpTable();
+        int[] ids = ConsistentHash.getIds(hashVal);
         String response = "";
 
         while (true) {
-            for (int i = 0; i < ids.length; i++) {
-                ServerItem server = serverList.get(ids[i]);
+            for (int id : ids) {
+                ServerItem server = serverList.get(id);
                 Socket skt = new Socket(server.getIP(), server.getPort());
                 PrintWriter out = new PrintWriter(skt.getOutputStream(), true);
                 out.println(command);
@@ -103,8 +103,8 @@ public class Client {
         ServerItem master = new ServerItem(name, IP, serverPort);
 
         // put all the hosts after "add" command into serverList.
-        for (int i = 0; i < strs.size(); i++) {
-            String[] newServer = strs.get(i).split(",");
+        for (String str : strs) {
+            String[] newServer = str.split(",");
             String hostName = newServer[0].trim();
             String ip = newServer[1].trim();
             int port = Integer.parseInt(newServer[2].trim());
@@ -127,8 +127,7 @@ public class Client {
          if has, choose anyone of the masters. if not, the current host is the master.
          */
         if(!isMaster) {
-            for (int j = 0; j < serverList.size(); j++) {
-                ServerItem tempItem = serverList.get(j);
+            for (ServerItem tempItem : serverList) {
                 Socket skt = new Socket(tempItem.getIP(), tempItem.getPort());
                 //System.out.println(tempItem.getIP() + " : " + tempItem.getPort());
                 PrintWriter out = new PrintWriter(skt.getOutputStream(), true);
@@ -151,7 +150,7 @@ public class Client {
             }
         }
         ServerList.saveServerList(login, name, serverList);
-        updateServerList(serverList);
+        updateServerList(serverList, true);
     }
 
     /**
@@ -161,12 +160,11 @@ public class Client {
     private void passAddRequest(List<ServerItem> serverList, ServerItem master) throws IOException {
         Socket skt = new Socket(master.getIP(), master.getPort());
         StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < serverList.size(); i++) {
-            ServerItem temp = serverList.get(i);
+        for (ServerItem temp : serverList) {
             if (temp.getName().equals(master.getName())) {
                 continue;
             }
-            sb.append(temp.getName() + " " + temp.getIP() + " " + temp.getPort() + " ");
+            sb.append(temp.getName()).append(" ").append(temp.getIP()).append(" ").append(temp.getPort()).append(" ");
         }
         String send = sb.toString();
         PrintWriter out = new PrintWriter(skt.getOutputStream(), true);
@@ -232,7 +230,7 @@ public class Client {
         // then directly update its serverList and inform others in the newList to update their serverList too.
         if (hostMap.containsKey(name)) {
             ServerList.saveServerList(login, name, newList);
-            updateServerList(newList);
+            updateServerList(newList, true);
         } else {
             // if host call delete request to delete itself
             // then you need to inform all the remaining hosts to update their serverList.
@@ -274,7 +272,7 @@ public class Client {
      * the current host is in the latest serverList
      * broadcast all the server in host's serverList to update their serverList
      */
-    private void updateServerList(List<ServerItem> serverList) throws IOException {
+    private void updateServerList(List<ServerItem> serverList, boolean updateTuple) throws IOException {
         String serverListContent = ServerList.getServerListContent(login, name);
         //List<ServerItem> serverList = ServerList.loadServerList(login, name);
         for (ServerItem server: serverList) {
@@ -288,7 +286,9 @@ public class Client {
             out.close();
         }
         // once update serverList, need to update tuples of the newServerList too.
-        updateTupeAfterAll(serverList);
+        if(updateTuple) {
+            updateTupeAfterAll(serverList);
+        }
     }
 
     /**
@@ -296,8 +296,8 @@ public class Client {
      */
     private boolean hasVariable(String[] strs) {
         boolean hasVal = false;
-        for (int i = 0; i < strs.length; i++) {
-            String s = strs[i].trim();
+        for (String str : strs) {
+            String s = str.trim();
             if (s.startsWith("?")) {
                 hasVal = true;
                 break;
@@ -375,9 +375,6 @@ public class Client {
         }
         String[] hosts = commands[1].split(" ");
         List<ServerItem> serverList = ServerList.loadServerList(login, name);
-        // oldlookUpTable & oldBackUpTable used for removeSameTuple
-        int[] oldlookUpTable = ConsistentHash.updateLookUpTable(serverList.size());
-        int[] oldBackUpTable = ConsistentHash.updateBackUpTable(oldlookUpTable);
 
         HashMap<String, ServerItem> hostMap = ServerList.getHostNameMap(login, name, serverList);
         List<ServerItem> newServerList = new ArrayList<>();
@@ -394,7 +391,7 @@ public class Client {
 
         // Remove all the same tuples(which is same to removed host) of all server hosts
         // according to the oldserverList, oldlookUpTable, oldBackUpTable
-        removeSameTuple(serverList, oldlookUpTable, oldBackUpTable, tuples);
+        removeSameTuple(serverList, tuples);
         moveTuples(newServerList, tuples);
         //after all the tuple of removed host have been redistributed, tell removed host to re-initiate itself.
         Socket skt = new Socket(IP, serverPort);
@@ -409,51 +406,59 @@ public class Client {
     }
 
     /**
+     * send tuple to a particular node
+     */
+    private void sendTupleTo(String command, String tupleStr, int hashVal, ServerItem server, String flag) {
+        String response;
+        try {
+            Socket skt = new Socket(server.getIP(), server.getPort());
+            PrintWriter out = new PrintWriter(skt.getOutputStream(), true);
+            BufferedReader in = new BufferedReader(new InputStreamReader(skt.getInputStream()));
+            out.println(command);
+            out.println(tupleStr);
+            out.println(hashVal+"");
+            out.println(flag);
+            response = in.readLine();
+            if (response != null && response.length() > 0) {
+                System.out.println(response);
+            }
+            out.close();
+        } catch (java.net.ConnectException e) {
+            System.out.println(server.getName() + " is disconnected.");
+            // System.out.println("(" + tupleStr + ")" + "has been put on its backup host: " + newServerList.get(ids[(i+1)%2]).getName());
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
      * deal with out & redistribute command.
      * store tuples into original host & backup host.
      */
     private void storeTuples(String command, String tupleStr, int hashVal, List<ServerItem> newServerList) {
-        int[] lookUpTable = ConsistentHash.updateLookUpTable(newServerList.size());
-        int[] backUpTable = ConsistentHash.updateBackUpTable(lookUpTable);
-        int[] ids = ConsistentHash.getIds(hashVal, lookUpTable, backUpTable);
-        String response;
+        ConsistentHash.updateLookUpTable(newServerList.size());
+        ConsistentHash.updateBackUpTable();
+        int[] ids = ConsistentHash.getIds(hashVal);
         for (int i = 0; i < ids.length; i++) {
             ServerItem server = newServerList.get(ids[i]);
-            try {
-                Socket skt = new Socket(server.getIP(), server.getPort());
-                PrintWriter out = new PrintWriter(skt.getOutputStream(), true);
-                BufferedReader in = new BufferedReader(new InputStreamReader(skt.getInputStream()));
-                out.println(command);
-                out.println(tupleStr);
-                out.println(hashVal+"");
-                if (i == 0) {
-                    out.println("origin");
-                } else {
-                    out.println("backup");
-                }
-                response = in.readLine();
-                if (response != null && response.length() > 0) {
-                    System.out.println(response);
-                }
-                out.close();
-            } catch (java.net.ConnectException e) {
-                System.out.println(server.getName() + " is disconnected.");
-                System.out.println("(" + tupleStr + ")" + "has been put on its backup host: " + newServerList.get(ids[(i+1)%2]).getName());
-            } catch (IOException e) {
-                e.printStackTrace();
+            String flag;
+            if (i == 0) {
+                flag = "origin";
+            } else {
+                flag = "backup";
             }
-
+            sendTupleTo(command, tupleStr, hashVal, server, flag);
         }
     }
 
     /**
      * remove all the tuples, which is the same in removed hosts, from all the original hosts.
      */
-    private void removeSameTuple(List<ServerItem> oldserverList, int[] oldlookUpTable, int[] oldBackUpTable, List<String> tuples ) throws IOException {
+    private void removeSameTuple(List<ServerItem> oldserverList, List<String> tuples ) throws IOException {
         for (String tuple : tuples) {
             String[] tupleStr = tuple.split("&");
             int hashVal = Integer.parseInt(tupleStr[1]);
-            int[] ids = ConsistentHash.getIds(hashVal, oldlookUpTable, oldBackUpTable);
+            int[] ids = ConsistentHash.getIds(hashVal);
             for (int j = 0; j < ids.length; j++) {
                 ServerItem server = oldserverList.get(ids[j]);// back up host
                 Socket skt = new Socket(server.getIP(), server.getPort());
@@ -490,14 +495,14 @@ public class Client {
      */
     private void moveTuplesAfterAll(String subCommand) throws IOException {
         List<ServerItem> serverList = ServerList.loadServerList(login, name);
-        int[] lookupTable = ConsistentHash.updateLookUpTable(serverList.size());
-        int[] backupTable = ConsistentHash.updateBackUpTable(lookupTable);
+        ConsistentHash.updateLookUpTable(serverList.size());
+        ConsistentHash.updateBackUpTable();
         String[] subs = subCommand.trim().split(" ");
         for (int i = 1; i < subs.length; i++) {
             String tuple = subs[i].trim();
             String[] tupleInfo = tuple.split("&");
             int hashVal = Integer.parseInt(tupleInfo[1]);
-            int[] ids = ConsistentHash.getIds(hashVal, lookupTable, backupTable);
+            int[] ids = ConsistentHash.getIds(hashVal);
             ServerItem server;
             if (tupleInfo[2].equals("backup")) {
                 server = serverList.get(ids[1]);
@@ -510,6 +515,34 @@ public class Client {
             out.println(tuple);
             out.close();
         }
+    }
+
+    /**
+     * send recover request to primary/backup nodes
+     */
+    private void recoverRequest(String subCommand) throws IOException {
+        String[] subs = subCommand.trim().split(" ");
+        int remoteNodeID = Integer.parseInt(subs[2]);
+        List<ServerItem> serverList = ServerList.loadServerList(login, name);
+        ServerItem server = serverList.get(remoteNodeID);
+        Socket skt = new Socket(server.getIP(), server.getPort());
+        PrintWriter out = new PrintWriter(skt.getOutputStream(), true);
+        out.println("recover");
+        out.println(subs[1]);
+        out.println(subs[3]);
+        out.close();
+    }
+
+    /**
+     * send a tuple with given flag to node
+     */
+    private void sendTupleToRequest(String subCommand) throws IOException {
+        String[] subs = subCommand.split(" ", 5);
+        int NodeID = Integer.parseInt(subs[1]);
+        List<ServerItem> serverList = ServerList.loadServerList(login, name);
+        ServerItem server = serverList.get(NodeID);
+        int hasVal = Integer.parseInt(subs[3]);
+        sendTupleTo("out", subs[4], hasVal, server, subs[2]);
     }
 
     /**
@@ -536,13 +569,20 @@ public class Client {
                 outRequest(subCommand);
             } else if (subCommand.startsWith("forward")) {
                 List<ServerItem> serverList = ServerList.loadServerList(login, name);
-                updateServerList(serverList);
+                updateServerList(serverList, true);
+            } else if (subCommand.startsWith("syncServerList")) {
+                List<ServerItem> serverList = ServerList.loadServerList(login, name);
+                updateServerList(serverList, false);
             } else if (subCommand.startsWith("delete")) {
                 deleteHostRequest(subCommand);
             } else if (subCommand.startsWith("remove")) {
                 RemoveTupleRequest(subCommand);
             } else if (subCommand.startsWith("moveTupleAfterAll")) {
                 moveTuplesAfterAll(subCommand);
+            } else if (subCommand.startsWith("recover")) {
+                recoverRequest(subCommand);
+            } else if (subCommand.startsWith("sendTupleTo")) {
+                sendTupleToRequest(subCommand);
             } else {
                 System.out.println("Command: " + subCommand + " does not exist");
                 //System.out.print("linda> ");
