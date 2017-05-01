@@ -73,6 +73,9 @@ public class Server extends Thread {
     private void recoverFromBackup(List<ServerItem> serverList, int nodeID) throws Exception {
         Set<Integer> backupNodes = ConsistentHash.getBackupNodes(nodeID);
         for (Integer ID : backupNodes) {
+            if (ID.equals(nodeID)) {
+                continue;
+            }
             Client client = new Client(login, name);
             ServerItem server = serverList.get(ID);
             client.runClient(server.getIP(), server.getPort(), "recover origin " + ID + " " + nodeID);
@@ -85,6 +88,9 @@ public class Server extends Thread {
     private void recoverFromPrimary(List<ServerItem> serverList, int nodeID) throws Exception {
         Set<Integer> primaryNodes = ConsistentHash.getPrimaryNodes(nodeID);
         for (Integer ID : primaryNodes) {
+            if (ID.equals(nodeID)) {
+                continue;
+            }
             Client client = new Client(login, name);
             ServerItem server = serverList.get(ID);
             client.runClient(server.getIP(), server.getPort(), "recover backup " + ID + " " + nodeID);
