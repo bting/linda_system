@@ -47,26 +47,28 @@ public class Server extends Thread {
      * recover after crash or killed
      */
     private void recover(int port) throws Exception {
-       // update net file
-       List<ServerItem> serverList = ServerList.loadServerList(login, name);
-       int nodeID = 0;
-       for (ServerItem server : serverList) {
-           if (server.getName().equals(name)) {
-               server.setPort(port);
-               break;
-           }
-           nodeID += 1;
-       }
-       ServerList.saveServerList(login, name, serverList);
-       ConsistentHash.updateTables(serverList.size());
-       Client client = new Client(login, name);
-       client.runClient(IP.getHostAddress(), PORT, "syncServerList");
+        System.out.println("Recovering from crashed or killed");
+        // update net file
+        List<ServerItem> serverList = ServerList.loadServerList(login, name);
+        int nodeID = 0;
+        for (ServerItem server : serverList) {
+            if (server.getName().equals(name)) {
+                server.setPort(port);
+                break;
+            }
+            nodeID += 1;
+        }
+        ServerList.saveServerList(login, name, serverList);
+        ConsistentHash.updateTables(serverList.size());
+        Client client = new Client(login, name);
+        client.runClient(IP.getHostAddress(), PORT, "syncServerList");
 
-       // clean up all old tuples
-       TupleSpace.removeTupleFile(login, name);
+        // clean up all old tuples
+        TupleSpace.removeTupleFile(login, name);
 
-       recoverFromBackup(serverList, nodeID);
-       recoverFromPrimary(serverList, nodeID);
+        recoverFromBackup(serverList, nodeID);
+        recoverFromPrimary(serverList, nodeID);
+        System.out.println("Recovered");
     }
 
     /**
@@ -273,12 +275,15 @@ public class Server extends Thread {
         String tupleStr = in.readLine();
         String hashVal = in.readLine();
         String flag = in.readLine();
+        String isRecover = in.readLine();
         String response = "";
         if (tupleStr != null && tupleStr.length() > 0) {
             String tuple = TupleSpace.createTupleFromString(tupleStr, hashVal, flag);
             TupleSpace.appendToTupleFile(tuple, login, name);
             tuples.add(tuple);
-            response = "Put tuple " +  "(" + tupleStr + ") on " + name + " : " + IP.getHostAddress();
+            if (isRecover.equals("no")) {
+                response = "Put tuple " + "(" + tupleStr + ") on " + name + " : " + IP.getHostAddress();
+            }
         }
         return response;
     }

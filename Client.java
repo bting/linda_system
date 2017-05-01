@@ -434,7 +434,7 @@ public class Client {
     /**
      * send tuple to a particular node
      */
-    private void sendTupleTo(String command, String tupleStr, int hashVal, ServerItem server, String flag) {
+    private void sendTupleTo(String command, String tupleStr, int hashVal, ServerItem server, String flag, String isRecover) {
         String response;
         try {
             Socket skt = new Socket(server.getIP(), server.getPort());
@@ -444,6 +444,7 @@ public class Client {
             out.println(tupleStr);
             out.println(hashVal+"");
             out.println(flag);
+            out.println(isRecover);
             response = in.readLine();
             if (response != null && response.length() > 0) {
                 System.out.println(response);
@@ -473,7 +474,7 @@ public class Client {
             } else {
                 flag = "backup";
             }
-            sendTupleTo(command, tupleStr, hashVal, server, flag);
+            sendTupleTo(command, tupleStr, hashVal, server, flag, "no");
         }
     }
 
@@ -568,7 +569,7 @@ public class Client {
         List<ServerItem> serverList = ServerList.loadServerList(login, name);
         ServerItem server = serverList.get(NodeID);
         int hasVal = Integer.parseInt(subs[3]);
-        sendTupleTo("out", subs[4], hasVal, server, subs[2]);
+        sendTupleTo("out", subs[4], hasVal, server, subs[2], "yes");
     }
 
     /**
@@ -599,7 +600,7 @@ public class Client {
             } else if (subCommand.startsWith("syncServerList")) {
                 List<ServerItem> serverList = ServerList.loadServerList(login, name);
                 updateServerList(serverList, false);
-            } else if (subCommand.startsWith("delete")) {
+            } else if (subCommand.startsWith("delete") && ErrorCheck.deleteRequestCheck(subCommand)) {
                 deleteHostRequest(subCommand);
             } else if (subCommand.startsWith("remove")) {
                 RemoveTupleRequest(subCommand);

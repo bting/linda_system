@@ -29,6 +29,20 @@ public class ErrorCheck {
         return true;
     }
 
+    public static boolean deleteRequestCheck(String subcommand) {
+        Matcher m = Pattern.compile("\\(([^)]+)\\)").matcher(subcommand);
+        ArrayList<String> strs = new ArrayList<>();
+        while (m.find()) {
+            strs.add(m.group(1));
+            //System.out.println(m.group(1));
+        }
+        if (strs.size() == 0) {
+            System.out.println("please input correct host information");
+            return false;
+        }
+        return true;
+    }
+
     /**
      * check whether the information of added_host is valid or not
      * like Ip address, port number and so on
@@ -80,7 +94,7 @@ public class ErrorCheck {
             //System.out.println(m.group(1));
         }
         if (strs.size() == 0) {
-            System.out.println("please input correct add request");
+            System.out.println("please input correct out request");
             return false;
         }
         for (int i = 0; i < strs.size(); i++) {
@@ -124,6 +138,9 @@ public class ErrorCheck {
                         System.out.println("please input correct string format: ?s:string");
                         return false;
                     }
+                } else {
+                    System.out.println("Please input correct wild format: ?s:string, ?i:int or ?f:float");
+                    return false;
                 }
 
             } else {
