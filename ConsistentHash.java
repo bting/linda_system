@@ -56,7 +56,6 @@ public class ConsistentHash {
         int[] hostInfo = new int[2];
         hostInfo[0] = lookUpTable[slotIndex];
         hostInfo[1] = backUpTable[slotIndex];
-        assert hostInfo[0] != hostInfo[1];
         return hostInfo;
     }
 

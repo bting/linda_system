@@ -454,7 +454,8 @@ public class Client {
             System.out.println(server.getName() + " is disconnected.");
             // System.out.println("(" + tupleStr + ")" + "has been put on its backup host: " + newServerList.get(ids[(i+1)%2]).getName());
         } catch (IOException e) {
-            System.out.println("error happens when doing" + command + "command.");
+            e.printStackTrace();
+            System.out.println("error happens when doing " + command + " command.");
         }
     }
 
@@ -482,6 +483,7 @@ public class Client {
      * remove all the tuples, which is the same in removed hosts, from all the original hosts.
      */
     private void removeSameTuple(List<ServerItem> oldserverList, List<String> tuples ) throws IOException {
+        ConsistentHash.updateTables(oldserverList.size());
         for (String tuple : tuples) {
             String[] tupleStr = tuple.split("&");
             int hashVal = Integer.parseInt(tupleStr[1]);

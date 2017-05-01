@@ -579,7 +579,7 @@ public class Server extends Thread {
                     String[] clientStr = clientInfo.substring(1).split(":");
                     // todo changge to IP equal(done)
                     //boolean tmp = clientStr[1].equals(PORT+"");
-                    if ((response.startsWith("put") || response.startsWith("get"))) {
+                    if (response.startsWith("put") || response.startsWith("get")) {
                         System.out.println("Server Received: " + response);
                         System.out.print("linda> ");
                     }
