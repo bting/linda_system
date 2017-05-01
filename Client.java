@@ -33,7 +33,7 @@ public class Client {
                     Socket skt = new Socket(server.getIP(), server.getPort());
                     PrintWriter out = new PrintWriter(skt.getOutputStream(), true);
                     if (command.equals("in")) {
-                        out.println("rd");
+                        out.println("rd2");
                     } else {
                         out.println(command);
                     }

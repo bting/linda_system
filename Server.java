@@ -1,11 +1,7 @@
-import com.sun.org.apache.xpath.internal.operations.Bool;
-import javafx.beans.value.ChangeListener;
-
 import java.io.*;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.net.SocketAddress;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -282,7 +278,7 @@ public class Server extends Thread {
             TupleSpace.appendToTupleFile(tuple, login, name);
             tuples.add(tuple);
             if (isRecover.equals("no")) {
-                response = "Put tuple " + "(" + tupleStr + ") on " + name + " : " + IP.getHostAddress();
+                response = "put tuple " + "(" + tupleStr + ") on " + name + " : " + IP.getHostAddress();
             }
         }
         return response;
@@ -550,6 +546,8 @@ public class Server extends Thread {
                                 break;
                     case "rd": response = rdHandler(in);
                                 break;
+                    case "rd2": response = rdHandler(in);
+                                break;
                     case "check": response = checkHandler(in);
                                 break;
                     // the removed host transfer their data.
@@ -579,10 +577,9 @@ public class Server extends Thread {
                 if (response.length() > 0) {
                     String clientInfo = clientSocket.getRemoteSocketAddress().toString();
                     String[] clientStr = clientInfo.substring(1).split(":");
-                    boolean isequal = clientStr[0].equals(IP.getHostAddress());
-                    // todo changge to IP equal
-                    boolean tmp = clientStr[1].equals(PORT+"");
-                    if (!tmp && !input.equals("check")) {
+                    // todo changge to IP equal(done)
+                    //boolean tmp = clientStr[1].equals(PORT+"");
+                    if ((response.startsWith("put") || response.startsWith("get"))) {
                         System.out.println("Server Received: " + response);
                         System.out.print("linda> ");
                     }

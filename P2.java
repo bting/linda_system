@@ -6,7 +6,7 @@ import java.io.InputStreamReader;
 /**
  * Created by Ting on 4/5/17.
  */
-public class P1 {
+public class P2 {
     /**
      * global variables
      */
@@ -21,9 +21,9 @@ public class P1 {
      * @throws IOException
      */
     public static void main(String args[]) throws IOException {
-        P1 p1 = new P1();
-        p1.name = args[0];
-        p1.run();
+        P2 p2 = new P2();
+        p2.name = args[0];
+        p2.run();
     }
 
     /**
