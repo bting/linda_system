@@ -189,7 +189,7 @@ public class Server extends Thread {
         for(String t: tuples) {
             String[] source = t.split(":", 3);
             String[] tempTuple = source[2].split("&");
-            String[] splitTuples = tempTuple[0].substring(1, source[2].length()-1).split(",");
+            String[] splitTuples = tempTuple[0].substring(1, tempTuple[0].length()-1).split(",");
             int count = Integer.parseInt(source[0].trim());
             if (count != strs.length) {
                 continue;
@@ -225,8 +225,8 @@ public class Server extends Thread {
                 tuples.remove(find);
             }
             String[] tempFind = find.split(":", 3);
-            String[] results = tempFind[2].trim().split("&");
-            result = results[0];
+            //String[] results = tempFind[2].trim().split("&");
+            result = tempFind[2];
             //System.out.println("variable match result: " + result);
         }
         return result;
@@ -243,7 +243,7 @@ public class Server extends Thread {
         if (isVal.equals("true")) {
             String s1 = isVariableMatched(tupleStr, isRemove);
             if (s1.length() != 0) {
-                response = "get Tuple " + s1 + " on " + " : " + IP.getHostAddress();
+                response = s1;
             }
         } else {
             boolean isMatched = isExactMatched(tupleStr, isRemove);

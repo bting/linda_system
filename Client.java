@@ -1,5 +1,6 @@
 import java.io.*;
 import java.net.Socket;
+import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
@@ -28,20 +29,29 @@ public class Client {
         List<ServerItem> serverList = ServerList.loadServerList(login, name);
         while (true) {
             for (ServerItem server : serverList) {
-                Socket skt = new Socket(server.getIP(), server.getPort());
-                PrintWriter out = new PrintWriter(skt.getOutputStream(), true);
-                if (command.equals("in")) {
-
+                try {
+                    Socket skt = new Socket(server.getIP(), server.getPort());
+                    PrintWriter out = new PrintWriter(skt.getOutputStream(), true);
+                    if (command.equals("in")) {
+                        out.println("rd");
+                    } else {
+                        out.println(command);
+                    }
+                    out.println(isVariable);
+                    out.println(tupleStr);
+                    BufferedReader in = new BufferedReader(new InputStreamReader(skt.getInputStream()));
+                    String input = in.readLine();
+                    if (input != null && input.length() > 0) {
+                        String[] inputs = input.split("&");
+                        int hashVal = Integer.parseInt(inputs[1]);
+                        String output = sendMessage(command, "false", inputs[0].substring(1, inputs[0].length()-1), hashVal);
+                        return output;
+                    }
+                    out.close();
+                } catch (java.net.ConnectException e) {
+                    System.out.println(server.getName() + " is disconnected.");
+                    continue;
                 }
-                out.println(command);
-                out.println(isVariable);
-                out.println(tupleStr);
-                BufferedReader in = new BufferedReader(new InputStreamReader(skt.getInputStream()));
-                String input = in.readLine();
-                if (input != null && input.length() > 0) {
-                    return input;
-                }
-                out.close();
             }
             Thread.sleep(1000);
         }
@@ -62,19 +72,24 @@ public class Client {
         while (true) {
             for (int id : ids) {
                 ServerItem server = serverList.get(id);
-                Socket skt = new Socket(server.getIP(), server.getPort());
-                PrintWriter out = new PrintWriter(skt.getOutputStream(), true);
-                out.println(command);
-                out.println(isVariable);
-                out.println(tupleStr);
-                BufferedReader in = new BufferedReader(new InputStreamReader(skt.getInputStream()));
-                String input = in.readLine();
-                if (input != null && input.length() > 0) {
-                    if (response.length() == 0) {
-                        response = input;
+                try {
+                    Socket skt = new Socket(server.getIP(), server.getPort());
+                    PrintWriter out = new PrintWriter(skt.getOutputStream(), true);
+                    out.println(command);
+                    out.println(isVariable);
+                    out.println(tupleStr);
+                    BufferedReader in = new BufferedReader(new InputStreamReader(skt.getInputStream()));
+                    String input = in.readLine();
+                    if (input != null && input.length() > 0) {
+                        if (response.length() == 0) {
+                            response = input;
+                        }
                     }
+                    out.close();
+                }catch (java.net.ConnectException e) {
+                    System.out.println(server.getName() + " is disconnected.");
+                    continue;
                 }
-                out.close();
             }
             if (response.length() > 0) {
                 return response;
@@ -261,10 +276,16 @@ public class Client {
      */
     private void updateTupeAfterAll(List<ServerItem> serverList) throws IOException {
         for (ServerItem item: serverList) {
-            Socket skt = new Socket(item.getIP(), item.getPort());
-            PrintWriter out = new PrintWriter(skt.getOutputStream(), true);
-            out.println("updateTupleAfterAll");
-            out.close();
+            try {
+                Socket skt = new Socket(item.getIP(), item.getPort());
+                PrintWriter out = new PrintWriter(skt.getOutputStream(), true);
+                out.println("updateTupleAfterAll");
+                out.close();
+            } catch (SocketException e) {
+                System.out.println("Can't connect to " + item.getName() + ".");
+                System.out.println("Please try to connect later.");
+            }
+
         }
     }
 
@@ -279,11 +300,16 @@ public class Client {
             if (server.getIP().equals(IP) && server.getPort() == serverPort) {
                 continue;
             }
-            Socket skt = new Socket(server.getIP(), server.getPort());
-            PrintWriter out = new PrintWriter(skt.getOutputStream(), true);
-            out.println("forward");
-            out.println(serverListContent);
-            out.close();
+            try {
+                Socket skt = new Socket(server.getIP(), server.getPort());
+                PrintWriter out = new PrintWriter(skt.getOutputStream(), true);
+                out.println("forward");
+                out.println(serverListContent);
+                out.close();
+            } catch (SocketException e) {
+                System.out.println("can't connect to " + server.getName() + ".");
+                System.out.println("Please try to connect later.");
+            }
         }
         // once update serverList, need to update tuples of the newServerList too.
         if(updateTuple) {
@@ -427,7 +453,7 @@ public class Client {
             System.out.println(server.getName() + " is disconnected.");
             // System.out.println("(" + tupleStr + ")" + "has been put on its backup host: " + newServerList.get(ids[(i+1)%2]).getName());
         } catch (IOException e) {
-            e.printStackTrace();
+            System.out.println("error happens when doing" + command + "command.");
         }
     }
 
