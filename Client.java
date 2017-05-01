@@ -454,7 +454,6 @@ public class Client {
             System.out.println(server.getName() + " is disconnected.");
             // System.out.println("(" + tupleStr + ")" + "has been put on its backup host: " + newServerList.get(ids[(i+1)%2]).getName());
         } catch (IOException e) {
-            e.printStackTrace();
             System.out.println("error happens when doing " + command + " command.");
         }
     }
